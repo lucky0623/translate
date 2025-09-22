@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能翻譯系統 - Vercel 版</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --bg-primary: #f8fafc;
+            --bg-secondary: #e0e7ff;
+            --bg-card: #ffffff;
+            --text-primary: #1f2937;
+            --text-secondary: #6b7280;
+            --border-color: #d1d5db;
+            --btn-primary: #2563eb;
+            --btn-primary-hover: #1d4ed8;
+            --output-bg: #f9fafb;
+            --purple-border: #c4b5fd;
+            --purple-bg: #faf5ff;
+        }
+        
+        [data-theme="dark"] {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-card: #1e293b;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --border-color: #334155;
+            --btn-primary: #3b82f6;
+            --btn-primary-hover: #2563eb;
+            --output-bg: #0f172a;
+            --purple-border: #7c3aed;
+            --purple-bg: #1e1b4b;
+        }
+        
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; 
+            background: linear-gradient(to bottom right, var(--bg-primary), var(--bg-secondary)); 
+            min-height: 100vh; 
+            padding: 20px;
+            color: var(--text-primary);
+            transition: background 0.3s, color 0.3s;
+        }
+        
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
+        h1 { font-size: 32px; color: var(--text-primary); }
+        
+        .header-controls { display: flex; gap: 8px; align-items: center; }
+        .theme-toggle { 
+            background: var(--bg-card); 
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all 0.2s;
+        }
+        .theme-toggle:hover { transform: scale(1.1); }
+        
+        .btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.2s; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-primary { background: var(--btn-primary); color: white; }
+        .btn-primary:hover:not(:disabled) { background: var(--btn-primary-hover); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); }
+        .btn-secondary { background: #e5e7eb; color: #374151; }
+        .btn-secondary:hover { background: #d1d5db; }
+        .btn-success { background: #16a34a; color: white; }
+        .btn-success:hover { background: #15803d; transform: translateY(-2px); }
+        .btn-indigo { background: #6366f1; color: white; }
+        .btn-indigo:hover { background: #4f46e5; transform: translateY(-2px); }
+        
+        .card { 
+            background: var(--bg-card); 
+            border-radius: 12px; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
+            padding: 24px; 
+            margin-bottom: 24px;
+            transition: background 0.3s;
+        }
+        
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+        
+        @media (max-width: 1200px) {
+            .grid-3 { grid-template-columns: 1fr; }
+            h1 { font-size: 24px; }
+        }
+        
+        textarea { 
+            width: 100%; 
+            height: 250px; 
+            padding: 12px; 
+            border: 1px solid var(--border-color); 
+            border-radius: 8px; 
+            resize: vertical; 
+            font-size: 14px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            transition: border-color 0.2s;
+        }
+        textarea:focus { outline: none; border-color: var(--btn-primary); }
+        
+        .output { 
+            width: 100%; 
+            min-height: 250px; 
+            padding: 12px; 
+            background: var(--output-bg); 
+            border: 1px solid var(--border-color); 
+            border-radius: 8px; 
+            overflow-y: auto; 
+            white-space: pre-wrap; 
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+        th, td { border: 1px solid var(--border-color); padding: 12px; text-align: left; }
+        th { background: var(--bg-secondary); font-weight: 600; }
+        tr:hover { background: var(--output-bg); }
+        
+        .checkbox-cell { width: 50px; text-align: center; }
+        .vocab-checkbox { 
+            width: 18px; 
+            height: 18px; 
+            cursor: pointer;
+            accent-color: var(--btn-primary);
+        }
+        
+        .settings-modal { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            right: 0; 
+            bottom: 0; 
+            background: rgba(0,0,0,0.5); 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            z-index: 1000;
+            animation: fadeIn 0.2s;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .settings-content { 
+            background: var(--bg-card); 
+            border-radius: 12px; 
+            padding: 32px; 
+            max-width: 500px; 
+            width: 90%;
+            animation: slideUp 0.3s;
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .input { 
+            width: 100%; 
+            padding: 10px; 
+            border: 1px solid var(--border-color); 
+            border-radius: 8px; 
+            margin: 8px 0;
+            background: var(--bg-card);
+            color: var(--text-primary);
+        }
+        .input:focus { outline: none; border-color: var(--btn-primary); }
+        
+        .spinner { 
+            border: 3px solid var(--border-color); 
+            border-top: 3px solid var(--btn-primary); 
+            border-radius: 50%; 
+            width: 40px; 
+            height: 40px; 
+            animation: spin 1s linear infinite; 
+            margin: 100px auto; 
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .toolbar { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+        .purple-card { border: 2px solid var(--purple-border); }
+        .purple-output { background: var(--purple-bg); }
+        
+        .error-message { 
+            color: #ef4444; 
+            padding: 12px; 
+            background: #fee2e2; 
+            border-radius: 8px; 
+            margin-top: 12px;
+        }
+        
+        [data-theme="dark"] .error-message {
+            background: #7f1d1d;
+            color: #fca5a5;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+        
+        .status-success { background: #d1fae5; color: #065f46; }
+        .status-loading { background: #dbeafe; color: #1e40af; }
+        
+        [data-theme="dark"] .status-success { background: #064e3b; color: #6ee7b7; }
+        [data-theme="dark"] .status-loading { background: #1e3a8a; color: #93c5fd; }
+        
+        .selection-hint {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+            font-size: 14px;
+            color: #1e40af;
+        }
+        
+        [data-theme="dark"] .selection-hint {
+            background: #1e3a8a;
+            border-color: #3b82f6;
+            color: #93c5fd;
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes slideUpAnim {
+            from {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+        }
+        
+        .vocab-settings-panel {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            margin-bottom: 24px;
+            border: none;
+            animation: slideDown 0.3s ease-out;
+        }
+        
+        .vocab-settings-panel h2,
+        .vocab-settings-panel p,
+        .vocab-settings-panel label {
+            color: white;
+        }
+        
+        .vocab-settings-panel select {
+            background: white;
+            color: #1f2937;
+        }
+        
+        .vocab-settings-panel .btn-primary {
+            background: white;
+            color: #667eea;
+        }
+        
+        .vocab-settings-panel .btn-primary:hover {
+            background: #f3f4f6;
+            color: #4f46e5;
+        }
+        
+        .vocab-settings-panel button[title="關閉"]:hover {
+            opacity: 0.8;
+            transform: scale(1.1);
+        }
+        
+        [data-theme="dark"] .vocab-settings-panel {
+            background: linear-gradient(135deg, #4c1d95 0%, #581c87 100%);
+        }
+        
+        [data-theme="dark"] .vocab-settings-panel select {
+            background: #1e293b;
+            color: #f1f5f9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌐 智能翻譯系統</h1>
+            <div class="header-controls">
+                <button class="theme-toggle" onclick="toggleTheme()" title="切換深色/淺色模式">🌓</button>
+                <button class="btn btn-secondary" onclick="showSettings()">⚙️ 設定</button>
+            </div>
+        </div>
+
+        <div class="toolbar">
+            <button class="btn btn-primary" onclick="translate()" id="translateBtn">開始翻譯</button>
+            <button class="btn btn-indigo" onclick="showVocabSettings()" id="vocabBtn">📚 製作單字表</button>
+        </div>
+
+        <div id="vocabSettingsPanel" class="card vocab-settings-panel" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h2 style="margin: 0; font-size: 20px;">📚 單字表設定</h2>
+                <button onclick="closeVocabSettings()" style="background: transparent; border: none; color: white; font-size: 24px; cursor: pointer; padding: 4px 8px; line-height: 1;" title="關閉">✕</button>
+            </div>
+            <p style="margin-bottom: 16px; opacity: 0.95;">選擇翻譯目標語言</p>
+            
+            <div style="margin-bottom: 12px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">翻譯語言：</label>
+                <select class="input" id="targetLang">
+                    <option value="繁體中文（台灣）">繁體中文（台灣）</option>
+                    <option value="英文">英文</option>
+                    <option value="日文">日文</option>
+                    <option value="韓文">韓文</option>
+                    <option value="法文">法文</option>
+                    <option value="德文">德文</option>
+                    <option value="西班牙文">西班牙文</option>
+                    <option value="義大利文">義大利文</option>
+                    <option value="葡萄牙文">葡萄牙文</option>
+                    <option value="俄文">俄文</option>
+                    <option value="阿拉伯文">阿拉伯文</option>
+                    <option value="泰文">泰文</option>
+                    <option value="越南文">越南文</option>
+                    <option value="印尼文">印尼文</option>
+                </select>
+            </div>
+
+            <div style="display: flex; gap: 8px; margin-top: 16px;">
+                <button class="btn btn-primary" style="flex: 1;" onclick="generateVocabWithSettings()">開始製作</button>
+                <button class="btn btn-secondary" onclick="closeVocabSettings()">取消</button>
+            </div>
+        </div>
+
+        <div class="grid-3">
+            <div class="card">
+                <h2 style="margin-bottom: 12px; font-size: 18px;">原文</h2>
+                <textarea id="sourceText" placeholder="輸入任何語言的文字..."></textarea>
+            </div>
+
+            <div class="card">
+                <h2 style="margin-bottom: 12px; font-size: 18px;">
+                    初步譯文 
+                    <span style="font-size: 12px; color: var(--text-secondary);">(Sonnet 4)</span>
+                    <span id="translateStatus1"></span>
+                </h2>
+                <div class="output" id="targetText">翻譯結果將顯示在此...</div>
+            </div>
+
+            <div class="card purple-card">
+                <h2 style="margin-bottom: 12px; font-size: 18px;">
+                    潤稿結果 
+                    <span style="font-size: 12px; color: #7c3aed;">(Opus 4)</span>
+                    <span id="translateStatus2"></span>
+                </h2>
+                <div class="output purple-output" id="polishedText">潤稿結果將顯示在此...</div>
+            </div>
+        </div>
+
+        <div id="vocabSection" style="display: none;">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+                    <h2 style="font-size: 20px;">單字表 <span id="vocabCount"></span></h2>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <button class="btn btn-secondary" onclick="selectAll()" id="selectAllBtn" style="display: none;">✓ 全選</button>
+                        <button class="btn btn-secondary" onclick="deselectAll()" id="deselectAllBtn" style="display: none;">✗ 全不選</button>
+                        <button class="btn btn-indigo" onclick="confirmSelection()" id="confirmBtn" style="display: none;">確認保留勾選項目</button>
+                        <button class="btn btn-success" onclick="downloadCSV()">📊 下載 CSV</button>
+                        <button class="btn btn-primary" onclick="downloadMarkdown()">📝 下載 Markdown</button>
+                    </div>
+                </div>
+                <div id="vocabTable"></div>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 24px; color: var(--text-secondary); font-size: 14px;">
+            <p>✨ Vercel 版本 • 使用您自己的 API Key • 所有資料僅在本機處理</p>
+        </div>
+    </div>
+
+    <div id="settingsModal" class="settings-modal" style="display: none;">
+        <div class="settings-content">
+            <h2 style="margin-bottom: 16px; font-size: 24px;">🔑 API Key 設定</h2>
+            <p style="margin-bottom: 12px; color: var(--text-secondary);">請輸入您的 Anthropic API Key</p>
+            <p style="margin-bottom: 16px; font-size: 14px; color: var(--text-secondary);">
+                取得方式：<br>
+                1. 前往 <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color: var(--btn-primary);">Anthropic Console</a><br>
+                2. 建立新的 API Key<br>
+                3. 複製金鑰（格式：sk-ant-xxxxx）
+            </p>
+            <input type="password" class="input" id="apiKeyInput" placeholder="sk-ant-xxxxx...">
+            <div style="display: flex; gap: 8px; margin-top: 16px;">
+                <button class="btn btn-primary" style="flex: 1;" onclick="saveApiKey()">儲存並開始使用</button>
+                <button class="btn btn-secondary" onclick="closeSettings()">取消</button>
+            </div>
+            <p style="margin-top: 16px; font-size: 12px; color: var(--text-secondary);">
+                💡 API Key 僅儲存在您的瀏覽器中，透過您的 Vercel 伺服器傳遞
+            </p>
+        </div>
+    </div>
+
+    <script>
+        let apiKey = localStorage.getItem('anthropic_api_key') || '';
+        let vocabularyList = [];
+        let targetLanguage = '繁體中文（台灣）';
+        let detectedSourceLanguage = '原文';
+
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('theme', next);
+        }
+
+        if (!apiKey) {
+            document.getElementById('settingsModal').style.display = 'flex';
+        }
+
+        function showSettings() {
+            document.getElementById('apiKeyInput').value = apiKey;
+            document.getElementById('settingsModal').style.display = 'flex';
+        }
+
+        function closeSettings() {
+            if (apiKey) {
+                document.getElementById('settingsModal').style.display = 'none';
+            }
+        }
+
+        function saveApiKey() {
+            const input = document.getElementById('apiKeyInput').value.trim();
+            if (input && input.startsWith('sk-ant-')) {
+                apiKey = input;
+                localStorage.setItem('anthropic_api_key', apiKey);
+                document.getElementById('settingsModal').style.display = 'none';
+                alert('✅ API Key 已儲存！');
+            } else {
+                alert('⚠️ 請輸入有效的 API Key（格式：sk-ant-xxxxx）');
+            }
+        }
+
+        function showVocabSettings() {
+            if (!apiKey) {
+                alert('請先設定 API Key');
+                showSettings();
+                return;
+            }
+
+            const sourceText = document.getElementById('sourceText').value.trim();
+            if (!sourceText) {
+                alert('請先輸入文字');
+                return;
+            }
+
+            document.getElementById('vocabSettingsPanel').style.display = 'block';
+            document.getElementById('vocabSettingsPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function closeVocabSettings() {
+            const panel = document.getElementById('vocabSettingsPanel');
+            panel.style.animation = 'slideUpAnim 0.3s ease-out';
+            setTimeout(() => {
+                panel.style.display = 'none';
+                panel.style.animation = '';
+            }, 300);
+        }
+
+        async function callClaude(prompt, model = 'claude-sonnet-4-20250514', retries = 2) {
+            for (let i = 0; i <= retries; i++) {
+                try {
+                    const response = await fetch('/api/claude', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            prompt: prompt,
+                            model: model,
+                            apiKey: apiKey
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.error?.message || `API 錯誤: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    return data.content[0].text;
+                } catch (error) {
+                    console.error('API 呼叫錯誤:', error);
+                    if (i === retries) throw error;
+                    await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+                }
+            }
+        }
+
+        async function translate() {
+            if (!apiKey) {
+                alert('請先設定 API Key');
+                showSettings();
+                return;
+            }
+
+            const sourceText = document.getElementById('sourceText').value.trim();
+            if (!sourceText) {
+                alert('請先輸入文字');
+                return;
+            }
+
+            document.getElementById('translateBtn').disabled = true;
+            document.getElementById('vocabBtn').disabled = true;
+            document.getElementById('targetText').innerHTML = '<div class="spinner"></div>';
+            document.getElementById('polishedText').innerHTML = '<div class="spinner"></div>';
+            document.getElementById('translateStatus1').innerHTML = '<span class="status-indicator status-loading">翻譯中...</span>';
+            document.getElementById('translateStatus2').innerHTML = '<span class="status-indicator status-loading">等待中...</span>';
+
+            try {
+                const translationPrompt = `你是專業的翻譯專家。請將以下文字翻譯成繁體中文（台灣用語）。
+
+要求：
+- 保持原文的語氣和風格
+- 使用台灣慣用的詞彙和表達方式
+- 確保翻譯流暢自然
+- 只輸出翻譯結果，不要添加任何說明或註解
+
+原文：
+${sourceText}`;
+
+                const translation = await callClaude(translationPrompt);
+                document.getElementById('targetText').textContent = translation;
+                document.getElementById('translateStatus1').innerHTML = '<span class="status-indicator status-success">完成</span>';
+                document.getElementById('translateStatus2').innerHTML = '<span class="status-indicator status-loading">潤稿中...</span>';
+
+                const polishPrompt = `你是資深的翻譯審校專家。請審核並優化以下翻譯。
+
+任務：
+1. 檢查翻譯準確性，確保忠於原文
+2. 改善語句流暢度和自然度
+3. 優化用詞，使其更符合台灣用語習慣
+4. 確保整體閱讀體驗良好
+5. 只輸出最終的潤稿結果，不要其他內容
+
+原文：
+${sourceText}
+
+初步譯文：
+${translation}
+
+請提供潤稿後的最終版本：`;
+
+                const polished = await callClaude(polishPrompt, 'claude-opus-4-20250514');
+                document.getElementById('polishedText').textContent = polished;
+                document.getElementById('translateStatus2').innerHTML = '<span class="status-indicator status-success">完成</span>';
+
+                alert('✅ 翻譯完成！');
+            } catch (error) {
+                console.error('翻譯錯誤:', error);
+                const errorMsg = `翻譯失敗：${error.message}`;
+                document.getElementById('targetText').innerHTML = `<div class="error-message">${errorMsg}</div>`;
+                document.getElementById('polishedText').innerHTML = `<div class="error-message">${errorMsg}</div>`;
+                document.getElementById('translateStatus1').textContent = '';
+                document.getElementById('translateStatus2').textContent = '';
+                alert('❌ ' + errorMsg);
+            } finally {
+                document.getElementById('translateBtn').disabled = false;
+                document.getElementById('vocabBtn').disabled = false;
+            }
+        }
+
+        async function generateVocabWithSettings() {
+            targetLanguage = document.getElementById('targetLang').value;
+            
+            const panel = document.getElementById('vocabSettingsPanel');
+            panel.style.animation = 'slideUpAnim 0.3s ease-out';
+            setTimeout(() => {
+                panel.style.display = 'none';
+                panel.style.animation = '';
+            }, 300);
+            
+            await generateVocab();
+        }
+
+        async function generateVocab() {
+            const sourceText = document.getElementById('sourceText').value.trim();
+
+            document.getElementById('translateBtn').disabled = true;
+            document.getElementById('vocabBtn').disabled = true;
+            document.getElementById('vocabSection').style.display = 'block';
+            document.getElementById('vocabTable').innerHTML = '<div class="spinner"></div>';
+
+            try {
+                const detectPrompt = `請偵測以下文字的語言，只回答語言名稱（例如：英文、日文、繁體中文、韓文、法文等），不要其他內容：
+
+${sourceText.substring(0, 200)}`;
+                
+                detectedSourceLanguage = (await callClaude(detectPrompt)).trim();
+                
+                const textLength = sourceText.length;
+                let allVocabulary = [];
+                
+                if (textLength <= 500) {
+                    document.getElementById('vocabTable').innerHTML = '<div class="spinner"></div><p style="text-align: center; margin-top: 12px; color: var(--text-secondary);">正在提取詞彙...</p>';
+                    
+                    allVocabulary = await extractVocabFromSegment(sourceText, 20);
+                } else {
+                    const segments = splitTextIntoSegments(sourceText, 500);
+                    document.getElementById('vocabTable').innerHTML = `<div class="spinner"></div><p style="text-align: center; margin-top: 12px; color: var(--text-secondary);">文章較長，正在分段處理... (共 ${segments.length} 段)</p>`;
+                    
+                    for (let i = 0; i < segments.length; i++) {
+                        document.getElementById('vocabTable').innerHTML = `<div class="spinner"></div><p style="text-align: center; margin-top: 12px; color: var(--text-secondary);">處理第 ${i + 1}/${segments.length} 段...</p>`;
+                        
+                        const segmentVocab = await extractVocabFromSegment(segments[i], 15);
+                        allVocabulary = allVocabulary.concat(segmentVocab);
+                    }
+                    
+                    document.getElementById('vocabTable').innerHTML = '<div class="spinner"></div><p style="text-align: center; margin-top: 12px; color: var(--text-secondary);">正在合併並去重...</p>';
+                    allVocabulary = removeDuplicates(allVocabulary);
+                    
+                    if (allVocabulary.length > 50) {
+                        document.getElementById('vocabTable').innerHTML = '<div class="spinner"></div><p style="text-align: center; margin-top: 12px; color: var(--text-secondary);">正在篩選最重要的詞彙...</p>';
+                        allVocabulary = await rankAndSelectVocabulary(allVocabulary, sourceText);
+                    }
+                }
+                
+                vocabularyList = allVocabulary;
+                document.getElementById('vocabCount').textContent = `(${vocabularyList.length} 個詞彙)`;
+                
+                renderVocabTable(true);
+                
+                document.getElementById('selectAllBtn').style.display = 'inline-block';
+                document.getElementById('deselectAllBtn').style.display = 'inline-block';
+                document.getElementById('confirmBtn').style.display = 'inline-block';
+
+                setTimeout(() => {
+                    document.getElementById('vocabSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+
+                alert('✅ 單字表產生完成！請勾選您想保留的單字。');
+            } catch (error) {
+                console.error('單字表產生錯誤:', error);
+                const errorMsg = `產生失敗：${error.message}`;
+                document.getElementById('vocabTable').innerHTML = `<div class="error-message">${errorMsg}</div>`;
+                alert('❌ ' + errorMsg);
+            } finally {
+                document.getElementById('translateBtn').disabled = false;
+                document.getElementById('vocabBtn').disabled = false;
+            }
+        }
+
+        function splitTextIntoSegments(text, maxLength) {
+            const segments = [];
+            let currentPos = 0;
+            
+            while (currentPos < text.length) {
+                let endPos = currentPos + maxLength;
+                
+                if (endPos < text.length) {
+                    const searchText = text.substring(currentPos, endPos + 100);
+                    const sentenceEnds = [
+                        searchText.indexOf('。'),
+                        searchText.indexOf('？'),
+                        searchText.indexOf('！'),
+                        searchText.indexOf('. '),
+                        searchText.indexOf('? '),
+                        searchText.indexOf('! '),
+                        searchText.indexOf('\n\n')
+                    ].filter(pos => pos > maxLength * 0.7 && pos !== -1);
+                    
+                    if (sentenceEnds.length > 0) {
+                        endPos = currentPos + Math.min(...sentenceEnds) + 1;
+                    }
+                }
+                
+                segments.push(text.substring(currentPos, endPos).trim());
+                currentPos = endPos;
+            }
+            
+            return segments;
+        }
+
+        async function extractVocabFromSegment(text, count) {
+            const vocabPrompt = `你是專業的語言教學專家。請從以下文字片段中提取 ${count} 個最重要的學習詞彙。
+
+【提取標準】
+✅ 必須提取：
+- 重要的專業術語和核心概念詞彙
+- 關鍵動詞、名詞、形容詞
+- 固有名詞和專有名詞
+- 慣用語和重要表達
+
+❌ 不要提取：
+- 基礎副詞（如：很、非常）
+- 過於簡單的日常用語
+- 連接詞和助詞
+
+文字片段：
+${text}
+
+【翻譯要求】
+對每個詞彙翻譯成${targetLanguage}時：
+- 如果有多種合適的翻譯方式（例如：不同語境、正式/非正式、文言/白話等），請提供 2-3 個翻譯選項
+- 如果只有一種最佳翻譯，就只提供一種
+- 如果不適合翻譯（例如：專有名詞、人名、地名、品牌名等），請在 translation 填入原文，並在備註說明「不需翻譯」的原因
+
+請嚴格按照以下 JSON 格式回應，不要包含任何 markdown 標記：
+{
+  "vocabulary": [
+    {
+      "original": "原文詞彙",
+      "translation": "翻譯1 / 翻譯2 / 翻譯3",
+      "note": "[詞性] 說明差異或不翻譯原因"
+    }
+  ]
+}`;
+
+            const result = await callClaude(vocabPrompt, 'claude-opus-4-20250514');
+            const cleanResult = result.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+            return JSON.parse(cleanResult).vocabulary;
+        }
+
+        function removeDuplicates(vocabulary) {
+            const seen = new Map();
+            
+            vocabulary.forEach(item => {
+                const key = item.original.toLowerCase().trim();
+                if (!seen.has(key)) {
+                    seen.set(key, item);
+                } else {
+                    const existing = seen.get(key);
+                    const existingTranslations = existing.translation.split(' / ');
+                    const newTranslations = item.translation.split(' / ');
+                    
+                    newTranslations.forEach(trans => {
+                        if (!existingTranslations.includes(trans)) {
+                            existingTranslations.push(trans);
+                        }
+                    });
+                    
+                    existing.translation = existingTranslations.join(' / ');
+                }
+            });
+            
+            return Array.from(seen.values());
+        }
+
+        async function rankAndSelectVocabulary(vocabulary, fullText) {
+            const rankPrompt = `你是專業的語言教學專家。以下是從一篇文章中提取的詞彙列表，但數量過多。請幫我篩選出最重要的 50 個詞彙。
+
+篩選標準：
+1. 與文章主題最相關的核心詞彙
+2. 學習價值高的詞彙
+3. 出現頻率較高或在關鍵位置的詞彙
+4. 專業術語優先於一般詞彙
+
+原文章主題概要：
+${fullText.substring(0, 500)}...
+
+詞彙列表（JSON 格式）：
+${JSON.stringify(vocabulary, null, 2)}
+
+請從以上詞彙中選出最重要的 50 個，保持原有的 JSON 格式和內容，只需要輸出篩選後的結果：
+{
+  "vocabulary": [...]
+}`;
+
+            const result = await callClaude(rankPrompt, 'claude-opus-4-20250514');
+            const cleanResult = result.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+            return JSON.parse(cleanResult).vocabulary;
+        }
+
+        function renderVocabTable(withCheckbox = false) {
+            let html = '';
+            
+            if (withCheckbox) {
+                html += `<div class="selection-hint">
+                    💡 <strong>提示：</strong>請勾選您想要保留的單字，取消勾選不需要的單字，然後點選「確認保留勾選項目」
+                </div>`;
+            }
+            
+            html += `<div style="overflow-x: auto;"><table>
+                <thead>
+                    <tr>`;
+            
+            if (withCheckbox) {
+                html += `<th class="checkbox-cell">
+                    <input type="checkbox" class="vocab-checkbox" onchange="toggleAllCheckboxes(this)" checked title="全選/取消全選">
+                </th>`;
+            }
+            
+            html += `<th>${detectedSourceLanguage}</th>
+                    <th>${targetLanguage}</th>
+                    <th>備註</th>
+                </tr>
+            </thead>
+            <tbody>`;
+            
+            vocabularyList.forEach((item, index) => {
+                html += `<tr>`;
+                
+                if (withCheckbox) {
+                    html += `<td class="checkbox-cell">
+                        <input type="checkbox" class="vocab-checkbox vocab-item-checkbox" data-index="${index}" checked>
+                    </td>`;
+                }
+                
+                html += `<td>${item.original}</td>
+                    <td>${item.translation}</td>
+                    <td>${item.note}</td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table></div>';
+            document.getElementById('vocabTable').innerHTML = html;
+        }
+
+        function toggleAllCheckboxes(masterCheckbox) {
+            const checkboxes = document.querySelectorAll('.vocab-item-checkbox');
+            checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
+        }
+
+        function selectAll() {
+            const checkboxes = document.querySelectorAll('.vocab-item-checkbox');
+            checkboxes.forEach(cb => cb.checked = true);
+            const masterCheckbox = document.querySelector('thead .vocab-checkbox');
+            if (masterCheckbox) masterCheckbox.checked = true;
+        }
+
+        function deselectAll() {
+            const checkboxes = document.querySelectorAll('.vocab-item-checkbox');
+            checkboxes.forEach(cb => cb.checked = false);
+            const masterCheckbox = document.querySelector('thead .vocab-checkbox');
+            if (masterCheckbox) masterCheckbox.checked = false;
+        }
+
+        function confirmSelection() {
+            const checkboxes = document.querySelectorAll('.vocab-item-checkbox');
+            const selectedIndices = [];
+            
+            checkboxes.forEach(cb => {
+                if (cb.checked) {
+                    selectedIndices.push(parseInt(cb.dataset.index));
+                }
+            });
+            
+            if (selectedIndices.length === 0) {
+                alert('⚠️ 請至少勾選一個單字！');
+                return;
+            }
+            
+            const originalCount = vocabularyList.length;
+            const removedCount = originalCount - selectedIndices.length;
+            
+            vocabularyList = vocabularyList.filter((item, index) => selectedIndices.includes(index));
+            
+            document.getElementById('vocabCount').textContent = `(${vocabularyList.length} 個詞彙)`;
+            
+            renderVocabTable(false);
+            
+            document.getElementById('selectAllBtn').style.display = 'none';
+            document.getElementById('deselectAllBtn').style.display = 'none';
+            document.getElementById('confirmBtn').style.display = 'none';
+            
+            if (removedCount > 0) {
+                alert(`✅ 已保留 ${vocabularyList.length} 個單字！\n已移除 ${removedCount} 個未勾選的單字。`);
+            } else {
+                alert(`✅ 已確認保留全部 ${vocabularyList.length} 個單字！`);
+            }
+        }
+
+        function downloadCSV() {
+            if (vocabularyList.length === 0) {
+                alert('目前沒有單字表');
+                return;
+            }
+
+            let csv = `${detectedSourceLanguage},${targetLanguage},備註\n`;
+            vocabularyList.forEach(item => {
+                csv += `"${item.original}","${item.translation}","${item.note}"\n`;
+            });
+
+            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `單字表_${new Date().toISOString().slice(0,10)}.csv`;
+            link.click();
+            alert('✅ CSV 檔案已下載！');
+        }
+
+        function downloadMarkdown() {
+            if (vocabularyList.length === 0) {
+                alert('目前沒有單字表');
+                return;
+            }
+
+            let md = `# 單字表\n\n| ${detectedSourceLanguage} | ${targetLanguage} | 備註 |\n|------|------|------|\n`;
+            vocabularyList.forEach(item => {
+                md += `| ${item.original} | ${item.translation} | ${item.note} |\n`;
+            });
+
+            const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `單字表_${new Date().toISOString().slice(0,10)}.md`;
+            link.click();
+            alert('✅ Markdown 檔案已下載！');
+        }
+    </script>
+</body>
+</html>
